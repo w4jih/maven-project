@@ -13,9 +13,9 @@ pipeline{
     stage('Checkout') {
       steps {
         // ⚠️ Remplace par l’URL de TON dépôt et tes credentialsId si privé
-        git branch: 'main',
+        git branch: 'master',
             url: 'https://github.com/w4jih/maven-project',
-            credentialsId: '' // ex. 'git-ssh-key' si nécessaire
+            
       }
     }
     stage('Build') {
