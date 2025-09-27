@@ -1,26 +1,20 @@
-pipeline{
-    agent any
-    tools{
-        jdk 'jdk-17'
-        mvn 'maven 3.6.3'
-    }
-    environment {
-    // Répertoire maven local dans le workspace pour éviter de polluer l’agent
-    MAVEN_OPTS = "-Dmaven.repo.local=${WORKSPACE}/.m2/repository"
+pipeline {
+  agent any
+  tools {
+    jdk   'jdk-17'           // must match the name in Manage Jenkins → Tools
+    maven 'maven 3.6.3'      // or whatever name you configured (not "mvn")
+  }
+  options {
+    timestamps()
+  }
+  environment {
+    // Use a per-workspace local repo (good hygiene)
+    MAVEN_CONFIG = "-Dmaven.repo.local=${WORKSPACE}/.m2/repository"
   }
 
-   stages {
-    stage('Checkout') {
-      steps {
-        // ⚠️ Remplace par l’URL de TON dépôt et tes credentialsId si privé
-        git branch: 'master',
-            url: 'https://github.com/w4jih/maven-project',
-            
-      }
-    }
+  stages {
     stage('Build') {
       steps {
-        // -B (batch), -U (update snapshots), skip tests si tu veux aller vite
         sh 'mvn -B -U -DskipTests clean verify'
       }
     }
@@ -31,22 +25,20 @@ pipeline{
       }
       post {
         always {
-          // Publier les rapports JUnit si présents
           junit testResults: '**/target/surefire-reports/*.xml', allowEmptyResults: true
         }
       }
     }
-    stage('Artefacts') {
+    stage('Artifacts') {
       steps {
-        // Archive les jars/war générés
         archiveArtifacts artifacts: 'target/*.{jar,war}', fingerprint: true, onlyIfSuccessful: true
       }
     }
   }
+
   post {
     always {
       cleanWs()
     }
   }
-
 }
