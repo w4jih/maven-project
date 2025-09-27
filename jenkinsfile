@@ -1,0 +1,52 @@
+pipeline{
+    agent any
+    tools{
+        jdk 'jdk-17'
+        mvn 'maven 3.6.3'
+    }
+    environment {
+    // Répertoire maven local dans le workspace pour éviter de polluer l’agent
+    MAVEN_OPTS = "-Dmaven.repo.local=${WORKSPACE}/.m2/repository"
+  }
+
+   stages {
+    stage('Checkout') {
+      steps {
+        // ⚠️ Remplace par l’URL de TON dépôt et tes credentialsId si privé
+        git branch: 'main',
+            url: 'https://github.com/w4jih/maven-project',
+            credentialsId: '' // ex. 'git-ssh-key' si nécessaire
+      }
+    }
+    stage('Build') {
+      steps {
+        // -B (batch), -U (update snapshots), skip tests si tu veux aller vite
+        sh 'mvn -B -U -DskipTests clean verify'
+      }
+    }
+    stage('Tests') {
+      when { expression { fileExists('pom.xml') } }
+      steps {
+        sh 'mvn -B test'
+      }
+      post {
+        always {
+          // Publier les rapports JUnit si présents
+          junit testResults: '**/target/surefire-reports/*.xml', allowEmptyResults: true
+        }
+      }
+    }
+    stage('Artefacts') {
+      steps {
+        // Archive les jars/war générés
+        archiveArtifacts artifacts: 'target/*.{jar,war}', fingerprint: true, onlyIfSuccessful: true
+      }
+    }
+  }
+  post {
+    always {
+      cleanWs()
+    }
+  }
+
+}
