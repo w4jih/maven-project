@@ -42,59 +42,52 @@ pipeline {
 
     /******************** Docker: Build, Tag, Push ********************/
     stage('Docker: Build & Push') {
-      when { expression { fileExists('Dockerfile') } }
-      environment {
-        // Tags dynamiques
-        DATE_TAG   = sh(script: "date -u +%Y%m%d%H%M", returnStdout: true).trim()
-        GIT_SHA    = sh(script: "git rev-parse --short=8 HEAD", returnStdout: true).trim()
-        // Récupère la version du POM (ex: 1.3.0)
-        POM_VERSION = sh(
-          script: "mvn -q -DforceStdout -Dmaven.repo.local=$MAVEN_REPO_LOCAL help:evaluate -Dexpression=project.version",
-          returnStdout: true
-        ).trim()
+  when { expression { fileExists('Dockerfile') } }
+  environment {
+    DATE_TAG   = sh(script: "date -u +%Y%m%d%H%M", returnStdout: true).trim()
+    GIT_SHA    = sh(script: "git rev-parse --short=8 HEAD", returnStdout: true).trim()
+    POM_VERSION = sh(
+      script: "mvn -q -DforceStdout -Dmaven.repo.local=$MAVEN_REPO_LOCAL help:evaluate -Dexpression=project.version",
+      returnStdout: true
+    ).trim()
+  }
+  steps {
+    sh '''
+      set -euo pipefail
+      echo "[INFO] Recherche du binaire Maven (jar/war)…"
+      ARTIFACT="$(find . -type f \\( -path "*/target/*.jar" -o -path "*/target/*.war" \\) \
+        ! -name "*-sources.jar" ! -name "*-javadoc.jar" | head -n1 || true)"
+      if [ -z "${ARTIFACT:-}" ]; then
+        echo "[ERROR] Aucun artefact trouvé sous */target/. Vérifie que 'mvn package' produit bien un jar/war."
+        echo "[DEBUG] Arborescence target:"
+        find . -type d -name target -maxdepth 3 -print -exec ls -l {} \\; || true
+        exit 1
+      fi
+      echo "[INFO] Artefact détecté: $ARTIFACT"
+      echo "ARTIFACT=$ARTIFACT" > .docker-env
+    '''
+    script {
+      def repo = "${env.DOCKERHUB_NAMESPACE}/${env.IMAGE_NAME}"
+      // Build avec ARG propre
+      sh """
+        set -euo pipefail
+        source .docker-env
+        docker build --build-arg JAR_FILE="\$ARTIFACT" -t ${repo}:build-${GIT_SHA} .
+      """
+      def tags = ["${POM_VERSION}", "${POM_VERSION}-${GIT_SHA}", "${POM_VERSION}-${DATE_TAG}", "${GIT_SHA}"]
+      if (env.BRANCH_NAME == 'main' || env.BRANCH_NAME == 'master') { tags << 'latest' }
+      for (t in tags) { sh "docker tag ${repo}:build-${GIT_SHA} ${repo}:${t}" }
+      withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DH_USER', passwordVariable: 'DH_PASS')]) {
+        sh """
+          echo "$DH_PASS" | docker login -u "$DH_USER" --password-stdin
+          for t in ${tags.join(' ')}; do docker push ${repo}:\$t; done
+          docker logout
+        """
       }
-      steps {
-        script {
-          def repo = "${DOCKERHUB_NAMESPACE}/${IMAGE_NAME}"
-          // Construit l’image locale avec un tag de build
-          sh """
-            docker build \
-              --build-arg JAR_FILE=\$(ls **/target/*.jar | head -n1 || echo '') \
-              -t ${repo}:build-${GIT_SHA} .
-          """
-
-          // Liste de tags à appliquer
-          def tags = ["${POM_VERSION}", "${POM_VERSION}-${GIT_SHA}", "${POM_VERSION}-${DATE_TAG}", "${GIT_SHA}"]
-          // Ajoute 'latest' si on est sur la branche principale
-          if (env.BRANCH_NAME == 'main' || env.BRANCH_NAME == 'master') {
-            tags << 'latest'
-          }
-
-          // Tagging local
-          for (t in tags) {
-            sh "docker tag ${repo}:build-${GIT_SHA} ${repo}:${t}"
-          }
-
-          // Login + push
-          withCredentials([usernamePassword(credentialsId: 'dockerhub-creds',
-                                            usernameVariable: 'wajih20032002',
-                                            passwordVariable: 'glace 123')]) {
-            sh """
-              echo "$DH_PASS" | docker login -u "$DH_USER" --password-stdin
-              for t in ${tags.join(' ')}; do
-                docker push ${repo}:\$t
-              done
-              docker logout
-            """
-          }
-
-          // Nettoyage local optionnel
-          sh """
-            docker rmi ${repo}:build-${GIT_SHA} ${tags.collect { "${repo}:" + it }.join(' ')} || true
-          """
-        }
-      }
+      sh "docker rmi ${repo}:build-${GIT_SHA} ${tags.collect { "${repo}:" + it }.join(' ')} || true"
     }
+  }
+}
   }
 
   post {
