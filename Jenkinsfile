@@ -77,8 +77,8 @@ pipeline {
 
           // Login + push
           withCredentials([usernamePassword(credentialsId: 'dockerhub-creds',
-                                            usernameVariable: 'DH_USER',
-                                            passwordVariable: 'DH_PASS')]) {
+                                            usernameVariable: 'wajih20032002',
+                                            passwordVariable: 'glace 123')]) {
             sh """
               echo "$DH_PASS" | docker login -u "$DH_USER" --password-stdin
               for t in ${tags.join(' ')}; do
