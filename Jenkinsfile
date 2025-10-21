@@ -4,7 +4,7 @@ pipeline {
 
   environment {
     // Personnalise ces 2 variables
-    DOCKERHUB_NAMESPACE = 'mydockerhubuser'
+    DOCKERHUB_NAMESPACE = 'wajih20032002'
     IMAGE_NAME          = 'myapp'
     // Répertoires Maven locaux pour cache
     MAVEN_REPO_LOCAL    = "${WORKSPACE}/.m2/repository"
