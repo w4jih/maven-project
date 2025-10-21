@@ -77,7 +77,7 @@ pipeline {
       def tags = ["${POM_VERSION}", "${POM_VERSION}-${GIT_SHA}", "${POM_VERSION}-${DATE_TAG}", "${GIT_SHA}"]
       if (env.BRANCH_NAME == 'main' || env.BRANCH_NAME == 'master') { tags << 'latest' }
       for (t in tags) { sh "docker tag ${repo}:build-${GIT_SHA} ${repo}:${t}" }
-      withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DH_USER', passwordVariable: 'DH_PASS')]) {
+      withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'wajih20032002', passwordVariable: 'glace 123')]) {
         sh """
           echo "$DH_PASS" | docker login -u "$DH_USER" --password-stdin
           for t in ${tags.join(' ')}; do docker push ${repo}:\$t; done
